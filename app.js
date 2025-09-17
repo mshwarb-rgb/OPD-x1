@@ -1,12 +1,12 @@
-// OPD LoggerX – v10X
-const APP_VERSION = "v10X";
-const KEY = "opdVisitsV6"; // keep same storage key so existing data remains
+// OPD Logger – v18 (compact summary; counts ALL diagnoses per visit; robust export fallbacks)
+const APP_VERSION = "v18";
+const KEY = "opdVisitsV6";
 
 const Genders = ["Male", "Female"];
-const AgeLabels = {Under5:"<5", FiveToFourteen:"5-14", FifteenToSeventeen:"15-17", EighteenPlus:"≥18"};
+const AgeLabels = { Under5: "<5", FiveToFourteen: "5-14", FifteenToSeventeen: "15-17", EighteenPlus: "≥18" };
 const AgeKeys = Object.keys(AgeLabels);
 const WWOpts = ["WW", "NonWW"];
-const Dispositions = ["Discharged","Admitted","Referred to ED","Referred out"]; // updated labels
+const Dispositions = ["Discharged", "Admitted", "Referred to ED", "Referred out"];
 
 const Diagnoses = [
   [1, "Respiratory Tract Infection", "Medical"],
@@ -29,60 +29,55 @@ const Diagnoses = [
   [18, "Burn", "Surgical"],
   [19, "Gunshot Wound (GSW)", "Surgical"],
   [20, "Other Wound", "Surgical"],
-  [21, "Other Surgical", "Surgical"],
+  [21, "Other Surgical", "Surgical"]
 ];
-const DiagByNo = Object.fromEntries(Diagnoses.map(([n, name, cat]) => [n, {name, cat}]));
+const DiagByNo = Object.fromEntries(Diagnoses.map(([n, name, cat]) => [n, { name, cat }]));
 
 function loadAll(){ try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch(e){ return []; } }
 function saveAll(list){ localStorage.setItem(KEY, JSON.stringify(list)); }
 function sortedAll(){ return loadAll().slice().sort((a,b)=>b.timestamp-a.timestamp); }
 
-// Selections
-let selPID=""; let selGender=null; let selAge=null; 
-let selDiags=[];  // up to two numbers
-let selWW=null; let selDisp=null;
-let editUid=null; let browseIndex=-1;
+// selections
+let selPID=""; let selGender=null; let selAge=null;
+let selDiags=[]; let selWW=null; let selDisp=null;
+let editUid=null;
 
-// DOM
+// DOM refs
 let pidDisplay, pidStatus, err; let scrNew, scrSum, scrData;
 
 window.initOPD = function initOPD(){
-  document.getElementById("version").textContent = " " + APP_VERSION;
-  pidDisplay = document.getElementById("pid-display");
-  pidStatus = document.getElementById("pid-status");
-  err = document.getElementById("error");
-  scrNew = document.getElementById("screen-new");
-  scrSum = document.getElementById("screen-summary");
-  scrData = document.getElementById("screen-data");
+  const vEl = document.getElementById("version");
+  if (vEl) vEl.textContent = " " + APP_VERSION;
 
-  document.getElementById("nav-new").onclick = () => showScreen("new");
-  document.getElementById("nav-summary").onclick = () => { showScreen("summary"); renderSummary(); };
-  document.getElementById("nav-data").onclick = () => { showScreen("data"); renderTable(); };
+  pidDisplay = document.getElementById("pid-display");
+  pidStatus  = document.getElementById("pid-status");
+  err        = document.getElementById("error");
+  scrNew     = document.getElementById("screen-new");
+  scrSum     = document.getElementById("screen-summary");
+  scrData    = document.getElementById("screen-data");
+
+  const _nn=document.getElementById('nav-new'); if(_nn) _nn.onclick=()=>showScreen('new');
+  const _ns=document.getElementById('nav-summary'); if(_ns) _ns.onclick=()=>{ showScreen('summary'); renderSummary(); };
+  const _nd=document.getElementById('nav-data'); if(_nd) _nd.onclick=()=>{ showScreen('data'); renderTable(); };
 
   document.querySelectorAll(".k").forEach(btn => btn.onclick = onKeypad);
 
-  // Footer actions
-  const saveNewBtn = document.getElementById("save-new");
-  if (saveNewBtn) saveNewBtn.onclick = () => onSave(true);
-  const updateBtn = document.getElementById("update");
-  if (updateBtn) updateBtn.onclick = onUpdate;
-  const cancelBtn = document.getElementById("cancel-edit");
-  if (cancelBtn) cancelBtn.onclick = cancelEdit;
-  const resetBtn = document.getElementById("reset");
-  if (resetBtn) resetBtn.onclick = resetForm;
+  const saveNewBtn = document.getElementById("save-new"); if (saveNewBtn) saveNewBtn.onclick = () => onSave(true);
+  const updateBtn  = document.getElementById("update");  if (updateBtn)  updateBtn.onclick  = onUpdate;
+  const cancelBtn  = document.getElementById("cancel-edit"); if (cancelBtn) cancelBtn.onclick = cancelEdit;
+  const resetBtn   = document.getElementById("reset");   if (resetBtn)   resetBtn.onclick   = resetForm;
 
-  // Export & data tools
+  // Export buttons
   const ecsv = document.getElementById("export-csv");
-  if (ecsv) ecsv.onclick = () => downloadCSV(sortedAll());
   const exls = document.getElementById("export-xls");
+  if (ecsv) ecsv.onclick = () => downloadCSV(sortedAll());
   if (exls) exls.onclick = () => downloadXLS(sortedAll());
-  const bjson = document.getElementById("backup-json");
-  if (bjson) bjson.onclick = () => downloadJSON(sortedAll());
-  const rbtn = document.getElementById("restore-btn");
+
+  const bjson = document.getElementById("backup-json"); if (bjson) bjson.onclick = () => downloadJSON(sortedAll());
+  const rbtn  = document.getElementById("restore-btn");
   const rfile = document.getElementById("restore-json");
   if (rbtn && rfile){ rbtn.onclick = () => rfile.click(); rfile.onchange = restoreJSON; }
-  const clear = document.getElementById("clear-all");
-  if (clear) clear.onclick = clearAll;
+  const clear = document.getElementById("clear-all"); if (clear) clear.onclick = clearAll;
 
   buildSelectors();
   updatePID();
@@ -96,27 +91,26 @@ function showScreen(name){
 }
 
 function buildSelectors(){
-  // Gender, Age
   makeChips(document.getElementById("gender-chips"), Genders, i => { selGender=i; buildSelectors(); }, selGender);
 
-  // Age chips (force one row by equal flex)
+  // Age chips
   const ageWrap = document.getElementById("age-chips");
   ageWrap.innerHTML = "";
   Object.values(AgeLabels).forEach((label, idx) => {
     const div = document.createElement("div");
-    div.className = "chip eq";
+    div.className = "chip";
     div.textContent = label;
     if (selAge===idx) div.classList.add("selected");
     div.onclick = () => { selAge=idx; buildSelectors(); };
     ageWrap.appendChild(div);
   });
 
-  // Diagnoses (multi-select up to 2)
+  // Diagnoses grid (multi-select up to 2)
   makeDiagTiles(document.getElementById("diagnosis-grid"), Diagnoses, selDiags);
   const diagCount = document.getElementById("diag-count");
   if (diagCount) diagCount.textContent = selDiags.length ? `${selDiags.length}/2 selected` : "";
 
-  // WW visible if any selected is Surgical
+  // WW visible if any Surgical
   const anySurg = selDiags.some(no => DiagByNo[no]?.cat === "Surgical");
   const wwSec = document.getElementById("ww-section");
   if (anySurg) {
@@ -127,12 +121,12 @@ function buildSelectors(){
     const ww = document.getElementById("ww-chips"); if (ww) ww.innerHTML="";
   }
 
-  // Disposition (force one row equal flex)
+  // Disposition chips
   const dispWrap = document.getElementById("disp-chips");
   dispWrap.innerHTML = "";
   Dispositions.forEach((label, idx) => {
     const div = document.createElement("div");
-    div.className = "chip eq";
+    div.className = "chip";
     div.textContent = label;
     if (selDisp===idx) div.classList.add("selected");
     div.onclick = () => { selDisp=idx; buildSelectors(); };
@@ -162,18 +156,17 @@ function makeDiagTiles(container, items, selectedNos){
     container.appendChild(div);
   });
 }
-
 function toggleDiag(no){
   const idx = selDiags.indexOf(no);
-  if (idx >= 0) {
-    selDiags.splice(idx,1);
-  } else {
+  if (idx >= 0) selDiags.splice(idx,1);
+  else {
     if (selDiags.length < 2) selDiags.push(no);
-    else { selDiags.shift(); selDiags.push(no); } // replace oldest
+    else { selDiags.shift(); selDiags.push(no); }
   }
   buildSelectors();
 }
 
+// Keypad & PID
 function onKeypad(e){
   const k = e.currentTarget.dataset.k;
   if (k === "C") selPID = "";
@@ -186,6 +179,7 @@ function updatePID(){
   pidStatus.textContent = "";
 }
 
+// Validation + visit build
 function validateSelection(requirePID=true){
   err.style.color = "#d93025"; err.textContent = "";
   if (requirePID && (!selPID || selPID.length === 0)) { err.textContent = "Enter Patient ID (max 3 digits)."; return false; }
@@ -194,7 +188,6 @@ function validateSelection(requirePID=true){
   if (anySurg && selWW===null) { err.textContent="Select WW or Non-WW for surgical diagnosis."; return false; }
   return true;
 }
-
 function newUid(){ return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,7); }
 function buildVisit(uidOverride=null, tsOverride=null){
   const diags = selDiags.slice(0,2);
@@ -218,16 +211,16 @@ function buildVisit(uidOverride=null, tsOverride=null){
   };
 }
 
+// Save / Update / Edit
 function onSave(){
   if (!validateSelection(true)) return;
   const all = loadAll();
   all.push(buildVisit());
   saveAll(all);
   tinyToast("Saved. New entry ready.", true);
-  cancelEdit(); // clears selections and returns to New screen
-  try { window.scrollTo({top: 0, behavior: "smooth"}); } catch(e){ window.scrollTo(0,0); } // go to top
+  cancelEdit();
+  try { window.scrollTo({top: 0, behavior: "smooth"}); } catch(e){ window.scrollTo(0,0); }
 }
-
 function onUpdate(){
   if (!validateSelection(false)) return;
   if (!editUid) return tinyToast("Not in edit mode.", false);
@@ -239,7 +232,6 @@ function onUpdate(){
   tinyToast("Updated.", true);
   cancelEdit();
 }
-
 function enterEdit(record){
   editUid = record.uid;
   selPID = record.patientId || "";
@@ -253,77 +245,201 @@ function enterEdit(record){
   selWW = anySurg ? (record.wwFlag==="WW" ? 0 : record.wwFlag==="NonWW" ? 1 : null) : null;
   selDisp = Dispositions.indexOf(record.disposition);
   updatePID(); buildSelectors();
-  const saveNew = document.getElementById("save-new");
-  if (saveNew) saveNew.style.display = "none";
-  const updateBtn = document.getElementById("update");
-  if (updateBtn) updateBtn.style.display = "";
-  const cancelBtn = document.getElementById("cancel-edit");
-  if (cancelBtn) cancelBtn.style.display = "";
+  const saveNew = document.getElementById("save-new"); if (saveNew) saveNew.style.display = "none";
+  const updateBtn = document.getElementById("update"); if (updateBtn) updateBtn.style.display = "";
+  const cancelBtn = document.getElementById("cancel-edit"); if (cancelBtn) cancelBtn.style.display = "";
   showScreen("new");
 }
 function cancelEdit(){
   editUid = null;
   selPID=""; selGender=null; selAge=null; selDiags=[]; selWW=null; selDisp=null;
   updatePID(); buildSelectors();
-  const saveNew = document.getElementById("save-new");
-  if (saveNew) saveNew.style.display = "";
-  const updateBtn = document.getElementById("update");
-  if (updateBtn) updateBtn.style.display = "none";
-  const cancelBtn = document.getElementById("cancel-edit");
-  if (cancelBtn) cancelBtn.style.display = "none";
+  const saveNew = document.getElementById("save-new"); if (saveNew) saveNew.style.display = "";
+  const updateBtn = document.getElementById("update"); if (updateBtn) updateBtn.style.display = "none";
+  const cancelBtn = document.getElementById("cancel-edit"); if (cancelBtn) cancelBtn.style.display = "none";
 }
 function resetForm(){ cancelEdit(); }
 
-/* ---------- Summary ---------- */
+/* ---------- helper ---------- */
+function normDiagNames(record){
+  if (Array.isArray(record.diagnosisNames) && record.diagnosisNames.length){
+    return record.diagnosisNames.filter(Boolean);
+  }
+  if (typeof record.diagnosisNameStr === "string" && record.diagnosisNameStr.trim()){
+    return record.diagnosisNameStr.split("+").map(s => s.trim()).filter(Boolean);
+  }
+  if (record.diagnosisName) return [record.diagnosisName];
+  return [];
+}
+
+/* =========================
+   Helpers (enhanced export)
+   ========================= */
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+function isNative(){
+  try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); }
+  catch(e){ return false; }
+}
+
+function canWebShareFiles() {
+  try {
+    return !!(navigator && navigator.canShare && typeof navigator.canShare === "function" &&
+      navigator.canShare({ files: [new File(["test"], "t.txt", {type:"text/plain"})] }));
+  } catch (_) { return false; }
+}
+
+function safeFileName(base, ext){
+  const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0,19);
+  return `${base}_${ts}.${ext}`;
+}
+
+function textToBlob(text, mime){
+  try { return new Blob([text], {type: mime}); }
+  catch(e){ return new Blob([new TextEncoder().encode(text)], {type: mime}); }
+}
+
+function toBase64Chunked(str){
+  const utf8 = unescape(encodeURIComponent(str));
+  const chunkSize = 0x8000;
+  let result = "";
+  for (let i = 0; i < utf8.length; i += chunkSize) {
+    result += btoa(utf8.slice(i, i + chunkSize));
+  }
+  return result;
+}
+
+function base64ToBlob(b64, mime){
+  const bin = atob(b64);
+  const len = bin.length;
+  const bytes = new Uint8Array(len);
+  for (let i=0;i<len;i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime || "application/octet-stream" });
+}
+
+async function shareWithCapacitor(filename, mime, base64Data){
+  const Cap = window.Capacitor;
+  const FS = Cap && (Cap.Filesystem || Cap.Plugins?.Filesystem);
+  const Share = Cap && (Cap.Share || Cap.Plugins?.Share);
+  if (!FS) throw new Error("Capacitor Filesystem not available");
+
+  const safe = filename;
+  await FS.writeFile({ path: safe, data: base64Data, directory: FS.Directory.Cache, recursive: true });
+  let uri;
+  try {
+    const res = await FS.getUri({ path: safe, directory: FS.Directory.Cache });
+    uri = res && res.uri;
+  } catch(e) {
+    await sleep(200);
+    const res2 = await FS.getUri({ path: safe, directory: FS.Directory.Cache });
+    uri = res2 && res2.uri;
+  }
+
+  if (!uri) throw new Error("Unable to get file URI");
+  if (Share) {
+    await (Share.share || Share.share).call(Share, { title: `Export ${filename}`, text: `Exported ${filename}`, url: uri, dialogTitle: "Share/export file" });
+  }
+  return true;
+}
+
+function triggerAnchorDownload(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+function openInNewTabFallback(blobOrText, mime){
+  try {
+    const blob = blobOrText instanceof Blob ? blobOrText : textToBlob(String(blobOrText), mime || "text/plain;charset=utf-8");
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  } catch(e) {
+    const dataUrl = "data:" + (mime || "text/plain;charset=utf-8") + "," + encodeURIComponent(String(blobOrText));
+    window.open(dataUrl, "_blank");
+  }
+}
+
+function tinyToast(msg, ok){
+  const el = document.getElementById("error");
+  if (!el) return;
+  el.style.color = ok ? "#107c41" : "#d93025";
+  el.textContent = msg;
+  setTimeout(()=>{ el.textContent=""; el.style.color="#d93025"; }, 1600);
+}
+
+/* ---------- Summary (today) – COMPACT ---------- */
 function renderSummary(){
   const all = loadAll();
   const today = new Date(); today.setHours(0,0,0,0);
   const start = +today, end = start + 86400000 - 1;
   const list = all.filter(v => v.timestamp >= start && v.timestamp <= end);
 
+  // Key totals
   const total = list.length;
   const male = list.filter(v => v.gender==="Male").length;
   const female = list.filter(v => v.gender==="Female").length;
-  const a0 = list.filter(v => v.ageGroup==="Under5").length;
-  const a1 = list.filter(v => v.ageGroup==="FiveToFourteen").length;
-  const a2 = list.filter(v => v.ageGroup==="FifteenToSeventeen").length;
-  const a3 = list.filter(v => v.ageGroup==="EighteenPlus").length;
-  const ww = list.filter(v => v.clinicalCategory==="Surgical" && v.wwFlag==="WW").length;
-  const non = list.filter(v => v.clinicalCategory==="Surgical" && v.wwFlag==="NonWW").length;
+  const surg = list.filter(v => v.clinicalCategory==="Surgical").length;
+  const med  = list.filter(v => v.clinicalCategory==="Medical").length;
+  const ww   = list.filter(v => v.clinicalCategory==="Surgical" && v.wwFlag==="WW").length;
+  const non  = list.filter(v => v.clinicalCategory==="Surgical" && v.wwFlag==="NonWW").length;
 
-  document.getElementById("k-total").textContent = total;
-  document.getElementById("k-male").textContent = male;
-  document.getElementById("k-female").textContent = female;
-  document.getElementById("k-ww").textContent = `${ww}/${non}`;
-  document.getElementById("age-breakdown").textContent = `<5 ${a0}, 5–14 ${a1}, 15–17 ${a2}, ≥18 ${a3}`;
+  const setTxt = (id, val) => { const el=document.getElementById(id); if (el) el.textContent = val; };
+  setTxt("k-total", total);
+  setTxt("k-male", male);
+  setTxt("k-female", female);
+  setTxt("k-surg", surg);
+  setTxt("k-med",  med);
+  setTxt("k-ww", `${ww}/${non}`);
 
-  // Age × Gender table
-  const ag = {Under5:{Male:0,Female:0}, FiveToFourteen:{Male:0,Female:0}, FifteenToSeventeen:{Male:0,Female:0}, EighteenPlus:{Male:0,Female:0}};
-  list.forEach(v => { ag[v.ageGroup][v.gender]++; });
-  const tbody = document.querySelector("#age-gender-table tbody");
-  tbody.innerHTML="";
-  [["<5","Under5"],["5-14","FiveToFourteen"],["15-17","FifteenToSeventeen"],["≥18","EighteenPlus"]].forEach(([label,key])=>{
-    const tr=document.createElement("tr");
-    tr.innerHTML = `<td>${label}</td><td>${ag[key].Male}</td><td>${ag[key].Female}</td>`;
-    tbody.appendChild(tr);
-  });
-
-  // Top diagnoses (count first diagnosis entry)
-  const counts = {};
+  // All diagnoses counted (≥1 shown)
+  const diagCounts = {};
   list.forEach(v => {
-    const firstName = (v.diagnosisNames && v.diagnosisNames[0]) || v.diagnosisName || "";
-    if (!firstName) return;
-    counts[firstName] = (counts[firstName]||0) + 1;
+    const names = normDiagNames(v);
+    names.forEach(n => {
+      if (!n) return;
+      diagCounts[n] = (diagCounts[n] || 0) + 1;
+    });
   });
-  const top = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  const cont = document.getElementById("top-diags"); cont.innerHTML="";
-  top.forEach(([name,c]) => { const div=document.createElement("div"); div.textContent=`${name}: ${c}`; cont.appendChild(div); });
+  const diagArr = Object.entries(diagCounts).sort((a,b)=>b[1]-a[1]);
+
+  const topBox = document.getElementById("top-diags");
+  if (topBox){
+    topBox.innerHTML = "";
+    const wrapper = document.createElement("div");
+    wrapper.style.display = "grid";
+    wrapper.style.gridTemplateColumns = "repeat(auto-fit, minmax(220px, 1fr))";
+    wrapper.style.gap = "6px 12px";
+    wrapper.style.fontSize = "13px";
+    diagArr.forEach(([name,c]) => {
+      const row = document.createElement("div");
+      row.textContent = `${name}: ${c}`;
+      wrapper.appendChild(row);
+    });
+    topBox.appendChild(wrapper);
+
+    // Dispositions inline
+    const dispCounts = { "Discharged":0, "Admitted":0, "Referred to ED":0, "Referred out":0 };
+    list.forEach(v => { if (dispCounts.hasOwnProperty(v.disposition)) dispCounts[v.disposition] += 1; });
+    const line = document.createElement("div");
+    line.style.marginTop = "8px";
+    line.style.fontSize = "12px";
+    line.style.color = "#333";
+    line.textContent = `Dispositions — Discharged: ${dispCounts["Discharged"]||0} | Admitted: ${dispCounts["Admitted"]||0} | Referred to ED: ${dispCounts["Referred to ED"]||0} | Referred out: ${dispCounts["Referred out"]||0}`;
+    topBox.appendChild(line);
+  }
 }
 
-/* ---------- Table & export ---------- */
+/* ---------- Data table & export ---------- */
 function renderTable(){
   const all = sortedAll();
   const tbody = document.querySelector("#data-table tbody");
+  if (!tbody) return;
   tbody.innerHTML = "";
   const fmt = (t)=> new Date(t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
   all.forEach(v => {
@@ -345,46 +461,125 @@ function renderTable(){
   tbody.querySelectorAll("button[data-uid]").forEach(btn => {
     btn.onclick = () => {
       const uid = btn.getAttribute("data-uid");
-      const all = sortedAll();
-      const rec = all.find(r => r.uid === uid);
-      const idx = all.findIndex(r => r.uid === uid);
-      if (rec) { browseIndex = idx; enterEdit(rec); }
+      const all2 = sortedAll();
+      const rec = all2.find(r => r.uid === uid);
+      if (rec) { enterEdit(rec); }
     };
   });
 }
 
-function downloadCSV(list){
+/* ---------- Export CSV / Excel (robust) ---------- */
+async function downloadCSV(list){
   const header = ["timestamp","patient_id","gender","age_group","diagnosis_nos","diagnosis_names","clinical_category","ww_flag","disposition"];
   const rows = [header].concat(list.map(v => [
-    v.timestamp, v.patientId || "", v.gender, v.ageLabel || "", 
+    v.timestamp,
+    v.patientId || "",
+    v.gender,
+    v.ageLabel || "",
     v.diagnosisNoStr || (Array.isArray(v.diagnosisNos)? v.diagnosisNos.join("+") : (v.diagnosisNo ?? "")),
     v.diagnosisNameStr || (Array.isArray(v.diagnosisNames)? v.diagnosisNames.join(" + ") : (v.diagnosisName ?? "")),
-    v.clinicalCategory || "", v.wwFlag || "NA", v.disposition || ""
+    v.clinicalCategory || "",
+    v.wwFlag || "NA",
+    v.disposition || ""
   ]));
-  const csv = rows.map(r => r.map(x => (""+x).replace(/,/g,";")).join(",")).join("\n");
-  const blob = new Blob([csv], {type:"text/csv"});
-  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-  a.download = `OPD_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click(); URL.revokeObjectURL(a.href);
+
+  const csv = rows.map(r => r.map(x => {
+    const s = String(x).replace(/"/g,'""');
+    return /[",\n]/.test(s) ? `"${s}"` : s;
+  }).join(",")).join("\n");
+
+  const filename = safeFileName("OPD", "csv");
+  const mime = "text/csv;charset=utf-8";
+
+  try {
+    if (isNative()) {
+      const b64 = toBase64Chunked(csv);
+      await shareWithCapacitor(filename, mime, b64);
+      tinyToast("CSV ready to share.", true);
+      return;
+    }
+    if (canWebShareFiles()) {
+      const file = new File([csv], filename, { type: mime });
+      await navigator.share({ files: [file], title: "OPD export", text: filename });
+      tinyToast("CSV shared.", true);
+      return;
+    }
+    const blob = textToBlob(csv, mime);
+    triggerAnchorDownload(blob, filename);
+    tinyToast("CSV downloaded.", true);
+  } catch (e) {
+    openInNewTabFallback(csv, mime);
+    tinyToast("CSV opened in new tab (fallback).", true);
+  }
 }
 
-function downloadXLS(list){
+async function downloadXLS(list){
   const header = ["timestamp","patient_id","gender","age_group","diagnosis_nos","diagnosis_names","clinical_category","ww_flag","disposition"];
   const rows = list.map(v => [
-    v.timestamp, v.patientId || "", v.gender, v.ageLabel || "",
+    v.timestamp,
+    v.patientId || "",
+    v.gender,
+    v.ageLabel || "",
     v.diagnosisNoStr || (Array.isArray(v.diagnosisNos)? v.diagnosisNos.join("+") : (v.diagnosisNo ?? "")),
     v.diagnosisNameStr || (Array.isArray(v.diagnosisNames)? v.diagnosisNames.join(" + ") : (v.diagnosisName ?? "")),
-    v.clinicalCategory || "", v.wwFlag || "NA", v.disposition || ""
+    v.clinicalCategory || "",
+    v.wwFlag || "NA",
+    v.disposition || ""
   ]);
-  let html = '<table><tr>' + header.map(h=>`<th>${h}</th>`).join('') + '</tr>';
-  rows.forEach(r => { html += '<tr>' + r.map(x=>`<td>${String(x).replace(/[<&>]/g,s=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[s]))}</td>`).join('') + '</tr>'; });
-  html += '</table>';
-  const blob = new Blob([html], {type:"application/vnd.ms-excel"});
-  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-  a.download = `OPD_${new Date().toISOString().slice(0,10)}.xls`;
-  a.click(); URL.revokeObjectURL(a.href);
+
+  const esc = s => String(s).replace(/[<&>]/g, c => ({"<":"&lt;","&":"&amp;",">":"&gt;"}[c]));
+  let table = '<table border="1"><tr>' + header.map(h=>`<th>${esc(h)}</th>`).join('') + '</tr>';
+  rows.forEach(r => { table += '<tr>' + r.map(x=>`<td>${esc(x)}</td>`).join('') + '</tr>'; });
+  table += '</table>';
+
+  const workbookHTML = `
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="UTF-8">
+<!--[if gte mso 9]><xml>
+ <x:ExcelWorkbook>
+  <x:ExcelWorksheets>
+   <x:ExcelWorksheet>
+    <x:Name>OPD</x:Name>
+    <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+   </x:ExcelWorksheet>
+  </x:ExcelWorksheets>
+ </x:ExcelWorkbook>
+</xml><![endif]-->
+</head>
+<body>
+${table}
+</body>
+</html>`.trim();
+
+  const filename = safeFileName("OPD", "xls");
+  const mime = "application/vnd.ms-excel;charset=utf-8";
+
+  try {
+    if (isNative()) {
+      const b64 = toBase64Chunked(workbookHTML);
+      await shareWithCapacitor(filename, mime, b64);
+      tinyToast("Excel ready to share.", true);
+      return;
+    }
+    if (canWebShareFiles()) {
+      const file = new File([workbookHTML], filename, { type: mime });
+      await navigator.share({ files: [file], title: "OPD export", text: filename });
+      tinyToast("Excel shared.", true);
+      return;
+    }
+    const blob = textToBlob(workbookHTML, mime);
+    triggerAnchorDownload(blob, filename);
+    tinyToast("Excel downloaded.", true);
+  } catch (e) {
+    openInNewTabFallback(workbookHTML, mime);
+    tinyToast("Excel opened in new tab (fallback).", true);
+  }
 }
 
+/* ---------- JSON backup/restore & clear ---------- */
 function downloadJSON(list){
   const blob = new Blob([JSON.stringify(list)], {type:"application/json"});
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "OPD_backup.json"; a.click(); URL.revokeObjectURL(a.href);
@@ -410,8 +605,6 @@ function clearAll(){
   saveAll([]); renderTable(); tinyToast("Cleared.", true);
 }
 
-function tinyToast(msg, ok){
-  err.style.color = ok ? "#107c41" : "#d93025";
-  err.textContent = msg;
-  setTimeout(()=>{ err.textContent=""; err.style.color="#d93025"; }, 1400);
-}
+/* ===== Global error hooks ===== */
+window.addEventListener("error", (ev) => { try { tinyToast("Error: " + (ev.error?.message || ev.message), false); } catch(_){} });
+window.addEventListener("unhandledrejection", (ev) => { try { tinyToast("Error: " + (ev.reason?.message || ev.reason), false); } catch(_){} });
