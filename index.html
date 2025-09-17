@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>OPD LoggerX</title>
-  <link rel="manifest" href="manifest.webmanifest?v=11" />
+  <link rel="manifest" href="manifest.webmanifest?v=12" />
   <meta name="theme-color" content="#099966" />
-  <link rel="stylesheet" href="styles.css?v=11" />
+  <link rel="stylesheet" href="styles.css?v=12" />
 </head>
 <body>
   <header>
@@ -55,7 +55,7 @@
         </div>
 
         <!-- Age (FULL WIDTH) -->
-        <div class="section" style="grid-column:1 / -1;">
+        <div class="section" id="section-age" style="grid-column:1 / -1;">
           <h2>Age</h2>
           <div class="chips" id="age-chips"></div>
         </div>
@@ -76,7 +76,7 @@
         </div>
 
         <!-- Disposition LAST (FULL WIDTH), one row, equal chips -->
-        <div class="section" style="grid-column:1 / -1;">
+        <div class="section" id="section-disp" style="grid-column:1 / -1;">
           <h2>Disposition</h2>
           <div class="chips" id="disp-chips"></div>
         </div>
@@ -153,7 +153,7 @@
     </section>
   </main>
 
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

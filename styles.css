@@ -85,3 +85,17 @@ th,td{ padding:6px; border-bottom:1px solid #eee; text-align:left; font-size:13p
 .chip{ padding:8px 10px; }
 .keypad{ gap:4px; }
 .footer{ padding:4px 6px; }
+
+/* Force Patient ID and Gender to full-width rows across all breakpoints */
+#section-pid, #section-gender, #section-age, #section-disp {
+  grid-column: 1 / -1 !important;
+}
+
+/* Extra compact spacing to reduce scroll */
+.form-grid { gap: 4px 6px; }
+.section { margin: 4px 0; }
+h2 { margin: 4px 0 2px; }
+.chips { gap: 4px; }
+.chip { padding: 7px 9px; }
+.keypad { gap: 4px; }
+.footer { padding: 4px 6px; }
