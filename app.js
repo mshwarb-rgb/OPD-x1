@@ -93,12 +93,12 @@ function showScreen(name){
 function buildSelectors(){
   makeChips(document.getElementById("gender-chips"), Genders, i => { selGender=i; buildSelectors(); }, selGender);
 
-  // Age chips
+  // Age chips (equal-width across full row)
   const ageWrap = document.getElementById("age-chips");
   ageWrap.innerHTML = "";
   Object.values(AgeLabels).forEach((label, idx) => {
     const div = document.createElement("div");
-    div.className = "chip";
+    div.className = "chip eq";
     div.textContent = label;
     if (selAge===idx) div.classList.add("selected");
     div.onclick = () => { selAge=idx; buildSelectors(); };
@@ -121,12 +121,12 @@ function buildSelectors(){
     const ww = document.getElementById("ww-chips"); if (ww) ww.innerHTML="";
   }
 
-  // Disposition chips
+  // Disposition chips (equal-width across full row)
   const dispWrap = document.getElementById("disp-chips");
   dispWrap.innerHTML = "";
   Dispositions.forEach((label, idx) => {
     const div = document.createElement("div");
-    div.className = "chip";
+    div.className = "chip eq";
     div.textContent = label;
     if (selDisp===idx) div.classList.add("selected");
     div.onclick = () => { selDisp=idx; buildSelectors(); };
