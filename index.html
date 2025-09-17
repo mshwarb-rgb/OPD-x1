@@ -54,8 +54,8 @@
           <div class="chips" id="gender-chips"></div>
         </div>
 
-        <!-- Age -->
-        <div class="section">
+        <!-- Age (FULL WIDTH) -->
+        <div class="section" style="grid-column:1 / -1;">
           <h2>Age</h2>
           <div class="chips" id="age-chips"></div>
         </div>
@@ -75,7 +75,7 @@
           </div>
         </div>
 
-        <!-- Disposition LAST (full width), one row, equal chips -->
+        <!-- Disposition LAST (FULL WIDTH), one row, equal chips -->
         <div class="section" style="grid-column:1 / -1;">
           <h2>Disposition</h2>
           <div class="chips" id="disp-chips"></div>
@@ -163,12 +163,11 @@
     document.addEventListener('DOMContentLoaded', () => {
       if (window.initOPD) window.initOPD();
     });
-  
-</script>
-<script>
-  document.addEventListener('DOMContentLoaded', function(){
-    var g = document.getElementById('boot-ok'); if(g){ g.style.display='block'; g.textContent='App loaded OK'; setTimeout(()=>g.style.display='none',1200); }
-  });
-</script>
+  </script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function(){
+      var g = document.getElementById('boot-ok'); if(g){ g.style.display='block'; g.textContent='App loaded OK'; setTimeout(()=>g.style.display='none',1200); }
+    });
+  </script>
 </body>
 </html>
